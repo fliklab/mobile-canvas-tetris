@@ -7,7 +7,7 @@ import {
   movePiece,
   rotatePiece,
   tick,
-} from './game'
+} from './logic'
 
 describe('Tetris game logic', () => {
   it('creates an empty 10x20 board with an active piece', () => {

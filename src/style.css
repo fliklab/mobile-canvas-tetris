@@ -44,10 +44,81 @@ button {
   gap: 10px;
 }
 
+.home-shell {
+  grid-template-rows: auto 1fr;
+  align-content: center;
+  gap: 20px;
+}
+
+.home-hero {
+  padding-top: 32px;
+}
+
+.home-copy {
+  max-width: 34rem;
+  margin: 12px 0 0;
+  color: #cbd5e1;
+  line-height: 1.55;
+}
+
+.game-list {
+  display: grid;
+  gap: 14px;
+  align-content: start;
+}
+
+.game-card {
+  display: grid;
+  gap: 8px;
+  padding: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 26px;
+  background:
+    linear-gradient(145deg, rgba(255,255,255,0.14), rgba(255,255,255,0.05)),
+    rgba(15, 23, 42, 0.75);
+  text-align: left;
+  box-shadow: 0 22px 55px rgba(0, 0, 0, 0.34), inset 0 1px 0 rgba(255,255,255,0.16);
+}
+
+.game-card:active {
+  transform: translateY(2px) scale(0.99);
+}
+
+.game-card span {
+  color: #67e8f9;
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.game-card strong {
+  font-size: 1.7rem;
+  line-height: 1;
+  letter-spacing: -0.06em;
+}
+
+.game-card em {
+  color: #cbd5e1;
+  font-style: normal;
+  line-height: 1.45;
+}
+
+.game-card small {
+  color: #a78bfa;
+  font-weight: 800;
+}
+
 .topbar {
-  display: flex;
+  display: grid;
+  grid-template-columns: 62px 1fr 48px;
   align-items: center;
-  justify-content: space-between;
+  gap: 10px;
+}
+
+.topbar > div {
+  min-width: 0;
+  text-align: center;
 }
 
 .eyebrow {
@@ -66,14 +137,25 @@ h1 {
   letter-spacing: -0.07em;
 }
 
-.icon-button {
-  width: 48px;
+.icon-button,
+.nav-button {
   height: 48px;
   border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.08);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16);
+}
+
+.icon-button {
+  width: 48px;
   font-size: 1.5rem;
+}
+
+.nav-button {
+  padding: 0 10px;
+  color: #c4b5fd;
+  font-size: 0.72rem;
+  font-weight: 900;
 }
 
 .hud {
@@ -209,7 +291,8 @@ h1 {
 
 .joy-btn:active,
 .action-button:active,
-.icon-button:active {
+.icon-button:active,
+.nav-button:active {
   transform: translateY(2px) scale(0.98);
 }
 
@@ -264,6 +347,10 @@ h1 {
   .shell {
     gap: 7px;
     padding-block: 8px;
+  }
+
+  .home-hero {
+    padding-top: 8px;
   }
 
   .hud-card {
