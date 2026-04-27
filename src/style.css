@@ -38,7 +38,7 @@ button {
   width: min(100vw, 480px);
   min-height: 100svh;
   margin: 0 auto;
-  padding: max(12px, env(safe-area-inset-top)) 14px max(14px, env(safe-area-inset-bottom));
+  padding: max(12px, env(safe-area-inset-top)) 14px calc(max(14px, env(safe-area-inset-bottom)) + 12px);
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr) auto;
   gap: 10px;
@@ -212,7 +212,7 @@ h1 {
 }
 
 #game {
-  width: min(100%, calc((100svh - 238px) * 0.5));
+  width: min(100%, clamp(120px, calc((100svh - 410px) * 0.5), 330px));
   max-width: 330px;
   height: auto;
   aspect-ratio: 1 / 2;
@@ -373,7 +373,8 @@ h1 {
 @media (max-height: 720px) {
   .shell {
     gap: 7px;
-    padding-block: 8px;
+    padding-top: 8px;
+    padding-bottom: calc(max(8px, env(safe-area-inset-bottom)) + 12px);
   }
 
   .home-hero {
