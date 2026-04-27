@@ -22,8 +22,17 @@ import {
   stepSnake,
   toggleSnakePause,
 } from './games/snake/logic'
+import {
+  MINESWEEPER_HEIGHT,
+  MINESWEEPER_MINES,
+  MINESWEEPER_WIDTH,
+  type MinesweeperState,
+  createMinesweeperGame,
+  revealCell,
+  toggleFlag,
+} from './games/minesweeper/logic'
 
-type GameId = 'home' | 'tetris' | 'snake'
+type GameId = 'home' | 'tetris' | 'snake' | 'minesweeper'
 
 const TETRIS_DROP_BASE = 720
 const TETRIS_MIN_DROP = 140
@@ -46,6 +55,8 @@ const app: HTMLDivElement = maybeApp
 let currentGame: GameId = 'home'
 let tetris = createTetrisGame()
 let snake = createSnakeGame()
+let minesweeper = createMinesweeperGame()
+let flagMode = false
 let lastFrame = 0
 let accumulator = 0
 let repeatTimer: number | undefined
@@ -67,6 +78,13 @@ const games = [
     badge: 'Canvas Arcade',
     description: '먹이를 먹으며 길어지는 클래식 스네이크 게임.',
     controls: '조이스틱 방향 전환 + PAUSE / NEW',
+  },
+  {
+    id: 'minesweeper' as const,
+    title: 'Mine Finder',
+    badge: 'Canvas Puzzle',
+    description: '숫자 힌트로 지뢰를 피하는 모바일 지뢰찾기.',
+    controls: '탭으로 열기 + FLAG 모드 표시',
   },
 ]
 
@@ -103,6 +121,7 @@ function renderGame(gameId: Exclude<GameId, 'home'>): void {
   accumulator = 0
   const meta = games.find((game) => game.id === gameId)!
   const isTetris = gameId === 'tetris'
+  const isMinesweeper = gameId === 'minesweeper'
 
   app.innerHTML = `
     <main class="shell" aria-label="${meta.title} game">
@@ -117,31 +136,38 @@ function renderGame(gameId: Exclude<GameId, 'home'>): void {
 
       <section class="hud" aria-live="polite">
         <div class="hud-card"><span>Score</span><strong id="score">0</strong></div>
-        <div class="hud-card"><span>${isTetris ? 'Lines' : 'Length'}</span><strong id="metric">0</strong></div>
-        <div class="hud-card"><span>${isTetris ? 'Level' : 'Food'}</span><strong id="level">1</strong></div>
+        <div class="hud-card"><span>${isTetris ? 'Lines' : isMinesweeper ? 'Flags' : 'Length'}</span><strong id="metric">0</strong></div>
+        <div class="hud-card"><span>${isTetris ? 'Level' : isMinesweeper ? 'Mines' : 'Food'}</span><strong id="level">1</strong></div>
         <div class="hud-card status"><span>Status</span><strong id="status">PLAY</strong></div>
       </section>
 
       <section class="stage-wrap">
-        <canvas id="game" width="300" height="600" aria-label="${meta.title} board"></canvas>
+        <canvas id="game" width="300" height="600" aria-label="${meta.title} board" data-board-game="${gameId}"></canvas>
         <div class="overlay" id="overlay" hidden>
           <strong id="overlay-title">Paused</strong>
           <span id="overlay-copy">Tap pause to resume</span>
         </div>
       </section>
 
-      <section class="controls" aria-label="Touch controls">
-        <div class="joystick" aria-label="Joystick">
-          <button data-action="up" class="joy-btn up" type="button" aria-label="${isTetris ? 'Rotate' : 'Move up'}">${isTetris ? '↻' : '↑'}</button>
-          <button data-action="left" class="joy-btn left" type="button" aria-label="Move left">←</button>
-          <button data-action="down" class="joy-btn down" type="button" aria-label="Move down">↓</button>
-          <button data-action="right" class="joy-btn right" type="button" aria-label="Move right">→</button>
-          <div class="joy-core" aria-hidden="true"></div>
-        </div>
+      <section class="controls ${isMinesweeper ? 'mine-controls' : ''}" aria-label="Touch controls">
+        ${
+          isMinesweeper
+            ? `<div class="mine-help" aria-label="Minesweeper help">
+                <strong>탭: 열기</strong>
+                <span>FLAG 모드를 켜면 탭한 칸에 깃발을 표시합니다.</span>
+              </div>`
+            : `<div class="joystick" aria-label="Joystick">
+                <button data-action="up" class="joy-btn up" type="button" aria-label="${isTetris ? 'Rotate' : 'Move up'}">${isTetris ? '↻' : '↑'}</button>
+                <button data-action="left" class="joy-btn left" type="button" aria-label="Move left">←</button>
+                <button data-action="down" class="joy-btn down" type="button" aria-label="Move down">↓</button>
+                <button data-action="right" class="joy-btn right" type="button" aria-label="Move right">→</button>
+                <div class="joy-core" aria-hidden="true"></div>
+              </div>`
+        }
 
         <div class="game-buttons" aria-label="Game buttons">
-          <button data-action="primary" class="action-button primary" type="button">${isTetris ? 'DROP' : 'BOOST'}</button>
-          <button data-action="pause" class="action-button" type="button">PAUSE</button>
+          <button data-action="primary" class="action-button primary" type="button">${isTetris ? 'DROP' : isMinesweeper ? 'FLAG' : 'BOOST'}</button>
+          ${isMinesweeper ? '' : '<button data-action="pause" class="action-button" type="button">PAUSE</button>'}
           <button data-action="restart" class="action-button" type="button">NEW</button>
         </div>
       </section>
@@ -160,6 +186,7 @@ function drawCurrentGame(): void {
   if (!canvas || !context) return
   if (currentGame === 'tetris') drawTetris(canvas, context, tetris)
   if (currentGame === 'snake') drawSnake(canvas, context, snake)
+  if (currentGame === 'minesweeper') drawMinesweeper(canvas, context, minesweeper)
 }
 
 function drawTetris(targetCanvas: HTMLCanvasElement, targetContext: CanvasRenderingContext2D, game: TetrisState): void {
@@ -195,6 +222,55 @@ function drawSnake(targetCanvas: HTMLCanvasElement, targetContext: CanvasRenderi
     drawBlock(targetContext, offsetX + part.x * cellSize, offsetY + part.y * cellSize, cellSize, index === 0 ? '#67e8f9' : '#4ade80')
   })
   strokeBoard(targetContext, offsetX, offsetY, boardSize, boardSize)
+}
+
+function drawMinesweeper(targetCanvas: HTMLCanvasElement, targetContext: CanvasRenderingContext2D, game: MinesweeperState): void {
+  const cellSize = Math.floor(Math.min(targetCanvas.width, targetCanvas.height) / MINESWEEPER_WIDTH)
+  const boardWidth = cellSize * MINESWEEPER_WIDTH
+  const boardHeight = cellSize * MINESWEEPER_HEIGHT
+  const offsetX = Math.floor((targetCanvas.width - boardWidth) / 2)
+  const offsetY = Math.floor((targetCanvas.height - boardHeight) / 2)
+
+  clearStage(targetCanvas, targetContext)
+  targetContext.textAlign = 'center'
+  targetContext.textBaseline = 'middle'
+  targetContext.font = `900 ${Math.max(15, cellSize * 0.44)}px Inter, system-ui, sans-serif`
+
+  for (const row of game.board) {
+    for (const cell of row) {
+      const x = offsetX + cell.x * cellSize
+      const y = offsetY + cell.y * cellSize
+      if (cell.isRevealed) {
+        drawRevealedMineCell(targetContext, x, y, cellSize)
+        if (cell.hasMine) {
+          targetContext.fillStyle = '#fb7185'
+          targetContext.beginPath()
+          targetContext.arc(x + cellSize / 2, y + cellSize / 2, cellSize * 0.22, 0, Math.PI * 2)
+          targetContext.fill()
+        } else if (cell.adjacentMines > 0) {
+          targetContext.fillStyle = mineNumberColor(cell.adjacentMines)
+          targetContext.fillText(String(cell.adjacentMines), x + cellSize / 2, y + cellSize / 2 + 1)
+        }
+      } else {
+        drawBlock(targetContext, x, y, cellSize, cell.isFlagged ? '#f59e0b' : '#334155')
+        if (cell.isFlagged) {
+          targetContext.fillStyle = '#fff7ed'
+          targetContext.fillText('⚑', x + cellSize / 2, y + cellSize / 2 + 1)
+        }
+      }
+    }
+  }
+  strokeBoard(targetContext, offsetX, offsetY, boardWidth, boardHeight)
+}
+
+function drawRevealedMineCell(targetContext: CanvasRenderingContext2D, x: number, y: number, size: number): void {
+  targetContext.fillStyle = '#dbeafe'
+  roundedRect(targetContext, x + 2, y + 2, size - 4, size - 4, Math.max(4, size * 0.12))
+  targetContext.fill()
+}
+
+function mineNumberColor(count: number): string {
+  return ['#e2e8f0', '#2563eb', '#16a34a', '#dc2626', '#7c3aed', '#be123c', '#0891b2', '#111827', '#64748b'][count] ?? '#0f172a'
 }
 
 function clearStage(targetCanvas: HTMLCanvasElement, targetContext: CanvasRenderingContext2D): void {
@@ -267,6 +343,23 @@ function syncHud(): void {
   const overlay = document.querySelector<HTMLElement>('#overlay')!
   const overlayTitle = document.querySelector<HTMLElement>('#overlay-title')!
   const overlayCopy = document.querySelector<HTMLElement>('#overlay-copy')!
+  if (currentGame === 'minesweeper') {
+    score.textContent = String(minesweeper.revealedSafeCells)
+    metric.textContent = String(minesweeper.flagsRemaining)
+    level.textContent = String(MINESWEEPER_MINES)
+    status.textContent = minesweeper.status === 'won' ? 'WIN' : minesweeper.status === 'game-over' ? 'OVER' : flagMode ? 'FLAG' : 'PLAY'
+    overlay.hidden = minesweeper.status === 'playing'
+    if (minesweeper.status === 'game-over') {
+      overlayTitle.textContent = 'Mine Hit'
+      overlayCopy.textContent = 'NEW 버튼으로 재시작'
+    }
+    if (minesweeper.status === 'won') {
+      overlayTitle.textContent = 'Clear!'
+      overlayCopy.textContent = '모든 안전 칸을 찾았습니다'
+    }
+    return
+  }
+
   const state = currentGame === 'tetris' ? tetris : snake
 
   score.textContent = String(state.score)
@@ -294,6 +387,10 @@ function handleAction(action: string): void {
   if (action === 'restart') {
     if (currentGame === 'tetris') tetris = createTetrisGame()
     if (currentGame === 'snake') snake = createSnakeGame()
+    if (currentGame === 'minesweeper') {
+      minesweeper = createMinesweeperGame()
+      flagMode = false
+    }
     accumulator = 0
     drawCurrentGame()
     syncHud()
@@ -302,12 +399,14 @@ function handleAction(action: string): void {
   if (action === 'pause') {
     if (currentGame === 'tetris') tetris = togglePause(tetris)
     if (currentGame === 'snake') snake = toggleSnakePause(snake)
+    if (currentGame === 'minesweeper') flagMode = !flagMode
     drawCurrentGame()
     syncHud()
     return
   }
   if (currentGame === 'tetris') handleTetrisAction(action)
   if (currentGame === 'snake') handleSnakeAction(action)
+  if (currentGame === 'minesweeper') handleMinesweeperAction(action)
   drawCurrentGame()
   syncHud()
 }
@@ -337,11 +436,36 @@ function handleSnakeAction(action: string): void {
   }
 }
 
+function handleMinesweeperAction(action: string): void {
+  if (action === 'primary') flagMode = !flagMode
+}
+
+function handleMinesweeperPointer(event: PointerEvent): void {
+  if (currentGame !== 'minesweeper' || !canvas || minesweeper.status !== 'playing') return
+  const rect = canvas.getBoundingClientRect()
+  const scaleX = canvas.width / rect.width
+  const scaleY = canvas.height / rect.height
+  const canvasX = (event.clientX - rect.left) * scaleX
+  const canvasY = (event.clientY - rect.top) * scaleY
+  const cellSize = Math.floor(Math.min(canvas.width, canvas.height) / MINESWEEPER_WIDTH)
+  const boardWidth = cellSize * MINESWEEPER_WIDTH
+  const boardHeight = cellSize * MINESWEEPER_HEIGHT
+  const offsetX = Math.floor((canvas.width - boardWidth) / 2)
+  const offsetY = Math.floor((canvas.height - boardHeight) / 2)
+  const x = Math.floor((canvasX - offsetX) / cellSize)
+  const y = Math.floor((canvasY - offsetY) / cellSize)
+  if (x < 0 || x >= MINESWEEPER_WIDTH || y < 0 || y >= MINESWEEPER_HEIGHT) return
+  minesweeper = flagMode ? toggleFlag(minesweeper, x, y) : revealCell(minesweeper, x, y)
+  drawCurrentGame()
+  syncHud()
+}
+
 function startRepeat(action: string): void {
   stopRepeat()
   handleAction(action)
   if (currentGame === 'tetris' && !['left', 'right', 'down'].includes(action)) return
   if (currentGame === 'snake' && !['primary'].includes(action)) return
+  if (currentGame === 'minesweeper') return
   repeatTimer = window.setTimeout(() => {
     repeatInterval = window.setInterval(() => handleAction(action), currentGame === 'tetris' && action === 'down' ? 70 : 105)
   }, 180)
@@ -384,7 +508,7 @@ function animationLoop(timestamp: number): void {
 document.addEventListener('click', (event) => {
   const target = event.target as HTMLElement
   const gameButton = target.closest<HTMLButtonElement>('[data-select-game]')
-  if (gameButton?.dataset.selectGame === 'tetris' || gameButton?.dataset.selectGame === 'snake') {
+  if (gameButton?.dataset.selectGame === 'tetris' || gameButton?.dataset.selectGame === 'snake' || gameButton?.dataset.selectGame === 'minesweeper') {
     renderGame(gameButton.dataset.selectGame)
     return
   }
@@ -395,6 +519,10 @@ document.addEventListener('click', (event) => {
 })
 
 document.addEventListener('pointerdown', (event) => {
+  if ((event.target as HTMLElement).closest<HTMLCanvasElement>('#game')) {
+    handleMinesweeperPointer(event)
+    return
+  }
   const target = event.target as HTMLElement
   const button = target.closest<HTMLButtonElement>('.joy-btn')
   if (!button) return
